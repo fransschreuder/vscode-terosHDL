@@ -1012,6 +1012,7 @@ export enum e_tools_vunit_simulator_name {
     ghdl = "ghdl",
     modelsim = "modelsim",
     xsim = "xsim",
+    nvc = "nvc",
 }
 export enum e_tools_vunit_runpy_mode {
     standalone = "standalone",
@@ -4909,6 +4910,9 @@ export function get_config_from_json(json_config: any): e_config {
     }
     if ( current_value_275 === "xsim"){
         default_config['tools']['vunit']['simulator_name'] = e_tools_vunit_simulator_name.xsim;
+    }
+    if ( current_value_275 === "nvc"){
+        default_config['tools']['vunit']['simulator_name'] = e_tools_vunit_simulator_name.nvc;
     }
             
     // tools -> vunit -> runpy_mode

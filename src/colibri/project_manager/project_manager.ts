@@ -360,8 +360,8 @@ export class Project_manager extends ConfigManager {
     ////////////////////////////////////////////////////////////////////////////
     // Watcher
     ////////////////////////////////////////////////////////////////////////////
-    add_file_to_watcher(watcher: t_watcher): t_action_result {
-        const result = this.watchers.add(watcher);
+    add_file_to_watcher(watcher: t_watcher, fire_callback = true): t_action_result {
+        const result = this.watchers.add(watcher, fire_callback);
         this.emitterProject.emitEvent(this.name, e_event.ADD_WATCHER);
         return result;
     }
@@ -412,6 +412,14 @@ export class Project_manager extends ConfigManager {
         }
 
         this.add_file_from_array(result.file_list);
+
+        // Register the run.py as VUnit watcher to keep it associated with the
+        // project. The VUnit tool uses it to run the tests even when the
+        // toplevel path is a VHDL testbench. The callback is not fired because
+        // the files are already loaded: the watcher callback would run run.py
+        // again, and concurrent VUnit executions in the same folder collide.
+        this.add_file_to_watcher({ path: vunit_path, watcher_type: e_watcher_type.VUNIT }, false);
+
         const action_result: t_action_result = {
             result: result.file_list,
             successful: result.successful,
