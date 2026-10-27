@@ -259,8 +259,21 @@ export class Project_manager extends ConfigManager {
             prj.add_file_to_watcher(watcher);
         });
 
-        if (jsonContent?.["configuration"] !== undefined) {
-            await prj.set_config(get_config_from_json(jsonContent?.["configuration"]));
+        // Project configuration
+        if (jsonContent?.["configuration_diff"] !== undefined) {
+            // Load the project configuration diff as is. Diffing the merged
+            // configuration against the global configuration would store the
+            // values inherited from the global configuration as project
+            // overrides when the global configuration changes.
+            await prj.set_config_diff(jsonContent["configuration_diff"]);
+        }
+        else if (jsonContent?.["configuration"] !== undefined) {
+            // Legacy project file without configuration diff: the stored
+            // configuration is the merged configuration.
+            const merged_config = get_config_from_json(jsonContent?.["configuration"]);
+            const config_diff = get_legacy_config_diff(merged_config,
+                GlobalConfigManager.getInstance().get_config());
+            await prj.set_config_diff(config_diff);
         }
 
         return prj;
@@ -520,7 +533,19 @@ export class Project_manager extends ConfigManager {
     // Config
     ////////////////////////////////////////////////////////////////////////////
     public async set_config(config: e_config, emitEvent = true): Promise<void> {
-        super.set_config(diff_config(config, GlobalConfigManager.getInstance().get_config()));
+        // Store only the settings that differ from the global configuration
+        this.set_config_diff(diff_config(config, GlobalConfigManager.getInstance().get_config()), emitEvent);
+    }
+
+    /**
+     * Set the project configuration diff (settings overridden from the global
+     * configuration) directly, without diffing it against the global
+     * configuration again.
+     * @param config Project configuration diff
+     * @param emitEvent Emit configuration events
+     */
+    public async set_config_diff(config: e_config, emitEvent = true): Promise<void> {
+        super.set_config(config);
         this.updateTaskManager();
         if (emitEvent) {
             this.emitterProject.emitEvent(this.name, e_event.SAVE_SETTINGS);
@@ -577,7 +602,12 @@ export class Project_manager extends ConfigManager {
     }
 
     public get_edam_json(reference_path?: string) {
-        return utils.get_edam_json(this.get_project_definition(), undefined, reference_path);
+        const edam_json: any = utils.get_edam_json(this.get_project_definition(), undefined, reference_path);
+        // Save the project configuration diff (settings overridden from the
+        // global configuration) along with the merged configuration, so the
+        // overrides are kept when the global configuration changes.
+        edam_json.configuration_diff = this.get_diff_config();
+        return edam_json;
     }
 
     public get_edam_yaml(reference_path?: string) {
@@ -878,4 +908,36 @@ function diff_config<T extends Record<string, any>>(config1: T, config2: T): T {
     });
 
     return differences as T;
+}
+
+/**
+ * Get the project configuration diff from a legacy merged configuration.
+ * The merged configuration doesn't store the project overrides, so the values
+ * inherited from the global configuration can't be told apart from the explicit
+ * overrides. Values equal to the built-in defaults are treated as inherited, so
+ * global configuration changes are not stored as project overrides.
+ * @param merged_config Merged (project + global) configuration stored in the project file
+ * @param global_config Current global configuration
+ * @returns Project configuration diff
+ */
+export function get_legacy_config_diff(merged_config: e_config, global_config: e_config): e_config {
+    const config_diff = diff_config(merged_config, global_config);
+    remove_default_config_values(config_diff, get_default_config());
+    return config_diff;
+}
+
+function remove_default_config_values(config_diff: any, default_config: any): void {
+    for (const key of Object.keys(config_diff)) {
+        const diff_value = config_diff[key];
+        const default_value = default_config !== undefined ? default_config[key] : undefined;
+        if (diff_value !== undefined && diff_value !== null
+            && typeof diff_value === 'object' && !Array.isArray(diff_value)
+            && default_value !== undefined && default_value !== null
+            && typeof default_value === 'object' && !Array.isArray(default_value)) {
+            remove_default_config_values(diff_value, default_value);
+        }
+        else if (JSON.stringify(diff_value) === JSON.stringify(default_value)) {
+            config_diff[key] = undefined;
+        }
+    }
 }
