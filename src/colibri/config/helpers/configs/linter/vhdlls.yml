@@ -16,3 +16,8 @@ vunitPath:
   description: "Path to the VUnit files. Example: '/home/myuser/.venvs/default/lib/python3.12/site-packages/vunit/vhdl/**/*.vhd'"
   type: string
   value: ""
+
+unisimPath:
+  description: "Path to the UNISIM library files. The files are added to the vhdl_ls configuration as a third-party UNISIM library, so 'library UNISIM;' is resolved. Example: '/opt/Xilinx/Vivado/2023.2/data/vhdl/src/unisim/**/*.vhd'"
+  type: string
+  value: ""

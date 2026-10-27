@@ -1682,6 +1682,15 @@ body.vscode-high-contrast {
                     </div>
                   
                   
+                    <div class="setting-item">
+                        <div class="setting-item-label">
+                            Path to the UNISIM library files. The files are added to the vhdl_ls configuration as a third-party UNISIM library, so 'library UNISIM;' is resolved. Example: '/opt/Xilinx/Vivado/2023.2/data/vhdl/src/unisim/**/*.vhd'
+                            <span class="markConfig" id="mark_linter-vhdlls-unisimPath"></span>
+                        </div>
+                            <input class="setting-input-box" id="linter-vhdlls-unisimPath" value="">
+                    </div>
+                  
+                  
                   
             </div>
             <div class="settings-section" id="linter-ghdl">
@@ -6601,6 +6610,8 @@ body.vscode-high-contrast {
     config["linter"]["vhdlls"]["ignoreVunit"] = element_value
     element_value = document.getElementById("linter-vhdlls-vunitPath").value;
     config["linter"]["vhdlls"]["vunitPath"] = element_value
+    element_value = document.getElementById("linter-vhdlls-unisimPath").value;
+    config["linter"]["vhdlls"]["unisimPath"] = element_value
     config["linter"]["ghdl"] = {}
     element_value = document.getElementById("linter-ghdl-arguments").value;
     config["linter"]["ghdl"]["arguments"] = element_value
@@ -7755,6 +7766,9 @@ body.vscode-high-contrast {
     }
     if (config["linter"] && config["linter"]["vhdlls"] && config["linter"]["vhdlls"]["vunitPath"] !== undefined) {
         document.getElementById("linter-vhdlls-vunitPath").value = config["linter"]["vhdlls"]["vunitPath"];
+    }
+    if (config["linter"] && config["linter"]["vhdlls"] && config["linter"]["vhdlls"]["unisimPath"] !== undefined) {
+        document.getElementById("linter-vhdlls-unisimPath").value = config["linter"]["vhdlls"]["unisimPath"];
     }
     if (config["linter"] && config["linter"]["ghdl"] && config["linter"]["ghdl"]["arguments"] !== undefined) {
         document.getElementById("linter-ghdl-arguments").value = config["linter"]["ghdl"]["arguments"];
@@ -9044,6 +9058,11 @@ body.vscode-high-contrast {
       mark = MODIFIEDMSG;
     }
     document.getElementById("mark_linter-vhdlls-vunitPath").innerHTML = mark;
+    mark = "";
+    if (projectName !== undefined && config["linter"] && config["linter"]["vhdlls"] && config["linter"]["vhdlls"]["unisimPath"] !== undefined) {
+      mark = MODIFIEDMSG;
+    }
+    document.getElementById("mark_linter-vhdlls-unisimPath").innerHTML = mark;
     mark = "";
     if (projectName !== undefined && config["linter"] && config["linter"]["ghdl"] && config["linter"]["ghdl"]["arguments"] !== undefined) {
       mark = MODIFIEDMSG;

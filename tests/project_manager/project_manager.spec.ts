@@ -18,6 +18,7 @@
 // along with TerosHDL.  If not, see <https://www.gnu.org/licenses/>.
 
 import * as paht_lib from "path";
+import * as fs from "fs";
 
 import { e_source_type, t_file } from '../../src/colibri/project_manager/common';
 import { Project_manager, DEFAULT_LIBRARY } from '../../src/colibri/project_manager/project_manager';
@@ -674,6 +675,47 @@ describe('project_manager', () => {
             expect(() => {
                 project_manager.save_edam_yaml(tempPath);
             }).not.toThrow();
+        });
+    });
+
+    describe('save_toml (vhdl_ls configuration)', () => {
+        const toml_path = '/tmp/test_vhdl_ls.toml';
+
+        afterEach(() => {
+            if (fs.existsSync(toml_path)) {
+                fs.unlinkSync(toml_path);
+            }
+        });
+
+        test('writes the standard and the project libraries', () => {
+            project_manager.save_toml(toml_path, "2008", false, "");
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toContain('standard = "2008"');
+            expect(toml).toContain('[libraries]');
+            expect(toml).not.toContain('UNISIM');
+            expect(toml).not.toContain('vunit_lib');
+        });
+
+        test('writes the UNISIM library as third-party when unisimPath is set', () => {
+            const unisim_path = '/opt/Xilinx/Vivado/2023.2/data/vhdl/src/unisim/**/*.vhd';
+            project_manager.save_toml(toml_path, "2008", false, "", unisim_path);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toContain(`UNISIM.files = ['${unisim_path}']`);
+            expect(toml).toContain('UNISIM.is_third_party = true');
+        });
+
+        test('writes the VUnit and UNISIM libraries together', () => {
+            const vunit_path = '/home/user/vunit/vhdl/**/*.vhd';
+            const unisim_path = '/opt/Xilinx/unisim/**/*.vhd';
+            project_manager.save_toml(toml_path, "2008", true, vunit_path, unisim_path);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toContain(`vunit_lib.files = ['${vunit_path}']`);
+            expect(toml).toContain('vunit_lib.is_third_party = true');
+            expect(toml).toContain(`UNISIM.files = ['${unisim_path}']`);
+            expect(toml).toContain('UNISIM.is_third_party = true');
         });
     });
 

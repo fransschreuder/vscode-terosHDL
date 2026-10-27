@@ -35,6 +35,7 @@ import * as t_config from "../../../config/config_declaration";
 import * as fxp from "fast-xml-parser";
 import * as paht_lib from 'path';
 import * as nunjucks from 'nunjucks';
+import { with_execution_lock } from "./execution_lock";
 import { e_tools_general_select_tool } from "../../../config/config_declaration";
 
 export class Vunit extends Generic_tool_handler {
@@ -134,8 +135,11 @@ export class Vunit extends Generic_tool_handler {
         const simulator_config = this.get_simulator_config(simulator_name, simulator_install_path);
 
         const test_list: t_test_declaration[] = [];
-        const result = await python.exec_python_script(config.general.general.pypath, runpy_path, args, 
-            simulator_config);
+        // Serialize VUnit executions per run.py directory: concurrent
+        // executions in the same folder share the "vunit_out" folder and collide.
+        const result = await with_execution_lock(file_utils.get_directory(runpy_path),
+            () => python.exec_python_script(config.general.general.pypath, runpy_path, args,
+                simulator_config));
 
         if (result.successful === true) {
             try {
@@ -285,15 +289,22 @@ export class Vunit extends Generic_tool_handler {
 
         const python_script_directory = file_utils.get_directory(python_script);
 
-        const exec_i = python.exec_python_script_async(python_path,
-            python_script, args, simulator_config, python_script_directory, (result: p_result) => {
-                // Remove runpy
-                if (config.tools.vunit.runpy_mode === t_config.e_tools_vunit_runpy_mode.creation) {
-                    file_utils.remove_file(python_script);
-                }
-                callback(result);
-            }, callback_stream);
-        return exec_i;
+        // Serialize VUnit executions per run.py directory: concurrent
+        // executions in the same folder share the "vunit_out" folder and collide.
+        with_execution_lock(python_script_directory, () => new Promise<p_result>(resolve => {
+            python.exec_python_script_async(python_path,
+                python_script, args, simulator_config, python_script_directory, (result: p_result) => {
+                    // Remove runpy
+                    if (config.tools.vunit.runpy_mode === t_config.e_tools_vunit_runpy_mode.creation) {
+                        file_utils.remove_file(python_script);
+                    }
+                    callback(result);
+                    resolve(result);
+                }, callback_stream);
+        })).catch(error => {
+            // eslint-disable-next-line no-console
+            console.log(error);
+        });
     }
 
     get_test_list_argument(test_list: t_test_declaration[]) {

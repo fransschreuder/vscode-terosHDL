@@ -105,36 +105,65 @@ export class Project_manager extends ConfigManager {
         }
 
         this.emitterProject = emitterProject;
-        // eslint-disable-next-line @typescript-eslint/no-this-alias
-        const selfm = this;
-        this.watchers = new manager_watcher.Watcher_manager((function () {
-            selfm.files.clear_automatic_files();
-            selfm.watchers.get().forEach(async (watcher: any) => {
-                if (file_utils.check_if_path_exist(watcher.path)) {
-                    if (selfm.emitterProject !== undefined) {
-                        selfm.emitterProject.emitEvent(selfm.name, e_event.WATCHER_LOADING);
-                    }
-                    if (watcher.watcher_type === e_watcher_type.CSV) {
-                        selfm.add_file_from_csv(watcher.path, false);
-                    }
-                    else if (watcher.watcher_type === e_watcher_type.VUNIT) {
-                        const result = await selfm.add_file_from_vunit(watcher.path, false);
-                        if (result.successful === false) {
-                            if (selfm.emitterProject !== undefined) {
-                                selfm.emitterProject.emitEventLog(result.msg, e_event.STDOUT_ERROR);
-                            }
-                        }
-                    }
-                    else if (watcher.watcher_type === e_watcher_type.VIVADO) {
-                        await selfm.add_file_from_vivado(watcher.path, false);
-                    }
-                    if (selfm.emitterProject !== undefined) {
-                        selfm.emitterProject.emitEvent(selfm.name, e_event.ADD_SOURCE);
-                        selfm.emitterProject.emitEvent(selfm.name, e_event.WATCHER_FINISHED);
-                    }
-                }
-            });
+        this.watchers = new manager_watcher.Watcher_manager((() => {
+            this.reload_watcher_files();
         }), emitterProject);
+    }
+
+    /**
+     * Reload the automatic files from the watchers (CSV, VUnit run.py, Vivado).
+     * The automatic files present before the reload are kept as a backup: if a
+     * watcher fails to reload (e.g. the VUnit run.py execution fails), the
+     * backup is restored so the source files are not lost from the file list.
+     */
+    private async reload_watcher_files(): Promise<void> {
+        const automatic_backup = this.files.get().filter(file => file.is_manual === false);
+        this.files.clear_automatic_files();
+
+        const load_list: Promise<t_action_result>[] = [];
+        this.watchers.get().forEach(watcher => {
+            if (file_utils.check_if_path_exist(watcher.path) === false) {
+                return;
+            }
+            if (this.emitterProject !== undefined) {
+                this.emitterProject.emitEvent(this.name, e_event.WATCHER_LOADING);
+            }
+            let load_promise: Promise<t_action_result>;
+            if (watcher.watcher_type === e_watcher_type.CSV) {
+                load_promise = Promise.resolve().then(() => this.add_file_from_csv(watcher.path, false));
+            }
+            else if (watcher.watcher_type === e_watcher_type.VUNIT) {
+                load_promise = this.add_file_from_vunit(watcher.path, false);
+            }
+            else if (watcher.watcher_type === e_watcher_type.VIVADO) {
+                load_promise = this.add_file_from_vivado(watcher.path, false);
+            }
+            else {
+                return;
+            }
+            load_list.push(load_promise.then(result => result, () => {
+                const failure: t_action_result = {
+                    result: undefined,
+                    successful: false,
+                    msg: "The watcher failed to reload"
+                };
+                return failure;
+            }));
+        });
+
+        const results = await Promise.all(load_list);
+
+        if (results.every(result => result.successful) === false) {
+            // Restore the automatic files present before the reload
+            automatic_backup.forEach(file => {
+                this.files.add(file);
+            });
+        }
+
+        if (this.emitterProject !== undefined) {
+            this.emitterProject.emitEvent(this.name, e_event.ADD_SOURCE);
+            this.emitterProject.emitEvent(this.name, e_event.WATCHER_FINISHED);
+        }
     }
 
     set taskStateManager(taskStateManager: TaskStateManager) {
@@ -670,7 +699,8 @@ export class Project_manager extends ConfigManager {
         file_utils.save_file_sync(output_path, edam_yaml);
     }
 
-    public save_toml(output_path: string, hdlVersion: string, ignoreVunit: boolean, vunitPath: string) {
+    public save_toml(output_path: string, hdlVersion: string, ignoreVunit: boolean, vunitPath: string,
+        unisimPath = "") {
         let initString = `standard = "${hdlVersion}"\n`;
 
         let endString = "\n\n";
@@ -679,6 +709,10 @@ export class Project_manager extends ConfigManager {
         }
         if (ignoreVunit && vunitPath !== "") {
             endString += "vunit_lib.is_third_party = true\n";
+        }
+        if (unisimPath !== "") {
+            endString += `UNISIM.files = ['${unisimPath}']\n`;
+            endString += "UNISIM.is_third_party = true\n";
         }
 
         const toml_text = initString + this.get_toml() + endString;
