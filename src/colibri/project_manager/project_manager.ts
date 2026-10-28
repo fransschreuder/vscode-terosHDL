@@ -119,18 +119,18 @@ function glob_pattern_to_regex(pattern: string): RegExp {
     return new RegExp(regex + "$");
 }
 
-/** Check if a file/library path matches one of the ignored paths (files or glob patterns) */
-function is_path_ignored(path: string, ignorePaths: string[]): boolean {
-    if (ignorePaths.length === 0) {
+/** Check if a file/library path matches one of the given paths (files or glob patterns) */
+function is_path_matching(path: string, patterns: string[]): boolean {
+    if (patterns.length === 0) {
         return false;
     }
     const candidates = [path, resolve(path)];
-    return ignorePaths.some((ignorePath) => {
-        const pattern = ignorePath.trim();
-        if (pattern === "") {
+    return patterns.some((pattern) => {
+        const trimmed = pattern.trim();
+        if (trimmed === "") {
             return false;
         }
-        const regex = glob_pattern_to_regex(pattern);
+        const regex = glob_pattern_to_regex(trimmed);
         return candidates.some((candidate) => regex.test(candidate));
     });
 }
@@ -808,7 +808,7 @@ export class Project_manager extends ConfigManager {
     }
 
     public save_toml(output_path: string, hdlVersion: string, ignoreVunit: boolean, vunitPath: string,
-        libraries: t_vhdlls_library[] = [], ignorePaths: string[] = []) {
+        libraries: t_vhdlls_library[] = [], ignorePaths: string[] = [], thirdPartyPaths: string[] = []) {
         // Merge the project libraries with the configured external libraries
         // (VUnit and the libraries table) by name, so the generated
         // configuration never defines the same library twice: vhdl_ls rejects
@@ -821,20 +821,23 @@ export class Project_manager extends ConfigManager {
             }
             // Ignored paths (files or glob patterns) are not added to the
             // configuration, so vhdl_ls does not analyze them
-            const files = library.files.filter((file) => !is_path_ignored(file, ignorePaths));
+            const files = library.files.filter((file) => !is_path_matching(file, ignorePaths));
             if (files.length === 0) {
                 continue;
             }
             // The VUnit libraries are not linted when the VUnit library is
-            // ignored, also when they come from the project (e.g. added by VUnit)
+            // ignored, also when they come from the project (e.g. added by
+            // VUnit). A library with a file matching the third-party paths is
+            // resolved but not linted either
             library_map.set(library.name, {
                 files: files,
-                is_third_party: ignoreVunit && is_vunit_library_name(library.name)
+                is_third_party: (ignoreVunit && is_vunit_library_name(library.name))
+                    || files.some((file) => is_path_matching(file, thirdPartyPaths))
             });
         }
 
         const configured_libraries: { name: string, paths: string[], is_third_party: boolean }[] = [];
-        if (vunitPath !== "" && !is_path_ignored(vunitPath, ignorePaths)) {
+        if (vunitPath !== "" && !is_path_matching(vunitPath, ignorePaths)) {
             // The path points to the VUnit vhdl directory; a glob pattern (e.g.
             // '.../vunit/vhdl/**/*.vhd') is also accepted, strip it to find the
             // directory
@@ -846,7 +849,7 @@ export class Project_manager extends ConfigManager {
         for (const library of libraries) {
             const name = library.name.trim();
             const library_path = library.path.trim();
-            if (name === "" || library_path === "" || is_path_ignored(library_path, ignorePaths)) {
+            if (name === "" || library_path === "" || is_path_matching(library_path, ignorePaths)) {
                 continue;
             }
             configured_libraries.push({ name: name, paths: [library_path], is_third_party: true });

@@ -857,6 +857,51 @@ describe('project_manager', () => {
             expect(toml).not.toContain('is_third_party');
         });
 
+        test('marks the library of a project file matching the third-party paths as third-party', async () => {
+            await add_vhdl_file('/home/user/simulation/UVVM/uvvm_util/src/uvvm_util_pkg.vhd', 'uvvm_util');
+            await add_vhdl_file('/home/user/src/tb_felix.vhd', 'felix');
+            project_manager.save_toml(toml_path, "2008", false, "",
+                [], [], ['/home/user/simulation/UVVM/**/*.vhd']);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toContain('uvvm_util.is_third_party = true');
+            expect(toml).toMatch(/^felix\.files = \[/m);
+            expect(toml).not.toContain('felix.is_third_party');
+        });
+
+        test('marks a library third-party for an exact third-party file path', async () => {
+            await add_vhdl_file('/home/user/src/ip_cores/sim/netlist.vhd', 'netlists');
+            await add_vhdl_file('/home/user/src/tb_felix.vhd', 'felix');
+            project_manager.save_toml(toml_path, "2008", false, "",
+                [], [], ['/home/user/src/ip_cores/sim/netlist.vhd']);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toContain('netlists.is_third_party = true');
+            expect(toml).not.toContain('felix.is_third_party');
+        });
+
+        test('does not mark a library third-party when no third-party path matches', async () => {
+            await add_vhdl_file('/home/user/src/tb_felix.vhd', 'felix');
+            project_manager.save_toml(toml_path, "2008", false, "",
+                [], [], ['/home/user/other/**/*.vhd']);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toMatch(/^felix\.files = \[/m);
+            expect(toml).not.toContain('is_third_party');
+        });
+
+        test('a library is dropped when its only file is ignored, even if it matches the third-party paths', async () => {
+            await add_vhdl_file('/home/user/src/ip_cores/sim/netlist.vhd', 'netlists');
+            await add_vhdl_file('/home/user/src/tb_felix.vhd', 'felix');
+            project_manager.save_toml(toml_path, "2008", false, "",
+                [], ['/home/user/src/ip_cores/**'], ['/home/user/src/ip_cores/sim/netlist.vhd']);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).not.toMatch(/^netlists\.files/m);
+            expect(toml).toMatch(/^felix\.files = \[/m);
+            expect(toml).not.toContain('is_third_party');
+        });
+
         test('ignorePaths filters matching project files', async () => {
             await add_vhdl_file('/home/user/src/tb_felix.vhd', 'felix');
             await add_vhdl_file('/home/user/src/ip_cores/sim/netlist.vhd', 'felix');

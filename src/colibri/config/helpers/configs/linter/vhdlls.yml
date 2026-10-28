@@ -22,6 +22,11 @@ ignorePaths:
   type: array
   value: []
 
+thirdPartyPaths:
+  description: "Paths of VHDL files to mark as third-party in vhdl_ls: the library of a matching project file is added to the vhdl_ls configuration as a third-party library, so it is resolved but not linted. Comma separated files or glob patterns. Example: '/home/myuser/firmware/simulation/UVVM/**/*.vhd'"
+  type: array
+  value: []
+
 libraries:
   description: "Additional libraries to include in the vhdl_ls configuration. Each row adds a library with the given name and path (a file or a glob pattern) as a third-party library, so e.g. 'library UNISIM;' is resolved. Example: name 'UNISIM', path '/opt/Xilinx/Vivado/2024.2/data/vhdl/src/unisims/unisim_retarget_VCOMP.vhd'"
   type: table

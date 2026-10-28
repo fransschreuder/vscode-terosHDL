@@ -150,6 +150,7 @@ export function forceRefresh(rustHDLFilePath: string, veribleLSFilePath: string)
         const ignoreVunit = config.linter.vhdlls.ignoreVunit;
         const vunitPath = config.linter.vhdlls.vunitPath;
         const ignorePaths = config.linter.vhdlls.ignorePaths;
+        const thirdPartyPaths = config.linter.vhdlls.thirdPartyPaths;
         const libraries = [...config.linter.vhdlls.libraries];
 
         // Migrate the legacy unisimPath setting (a single path string) to the
@@ -171,7 +172,7 @@ export function forceRefresh(rustHDLFilePath: string, veribleLSFilePath: string)
         }
 
         multi_manager.get_selected_project().save_toml(rustHDLFilePath, hdlVersion, ignoreVunit, vunitPath,
-            libraries, ignorePaths);
+            libraries, ignorePaths, thirdPartyPaths);
 
         multi_manager
             .get_selected_project()

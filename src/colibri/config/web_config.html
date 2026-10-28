@@ -1710,6 +1710,16 @@ body.vscode-high-contrast {
                   
                     <div class="setting-item">
                         <div class="setting-item-label">
+                            Paths of VHDL files to mark as third-party in vhdl_ls: the library of a matching project file is added to the vhdl_ls configuration as a third-party library, so it is resolved but not linted. Comma separated files or glob patterns. Example: '/home/myuser/firmware/simulation/UVVM/**/*.vhd'
+                            <span class="markConfig" id="mark_linter-vhdlls-thirdPartyPaths"></span>
+                        </div>
+                        <div class="setting-item-description">Comma separated values</div>
+                        <input class="setting-input-box" id="linter-vhdlls-thirdPartyPaths">
+                    </div>
+                  
+                  
+                    <div class="setting-item">
+                        <div class="setting-item-label">
                             Additional libraries to include in the vhdl_ls configuration. Each row adds a library with the given name and path (a file or a glob pattern) as a third-party library, so e.g. 'library UNISIM;' is resolved. Example: name 'UNISIM', path '/opt/Xilinx/Vivado/2024.2/data/vhdl/src/unisims/unisim_retarget_VCOMP.vhd'
                             <span class="markConfig" id="mark_linter-vhdlls-libraries"></span>
                         </div>
@@ -6725,6 +6735,11 @@ body.vscode-high-contrast {
       element_value = [];
     }
     config["linter"]["vhdlls"]["ignorePaths"] = element_value
+    element_value = document.getElementById("linter-vhdlls-thirdPartyPaths").value.split(',');
+    if (element_value.length == 1 && element_value[0] == "") {
+      element_value = [];
+    }
+    config["linter"]["vhdlls"]["thirdPartyPaths"] = element_value
     element_value = get_table_value("linter-vhdlls-libraries");
     config["linter"]["vhdlls"]["libraries"] = element_value
     config["linter"]["ghdl"] = {}
@@ -7884,6 +7899,9 @@ body.vscode-high-contrast {
     }
     if (config["linter"] && config["linter"]["vhdlls"] && config["linter"]["vhdlls"]["ignorePaths"] !== undefined) {
         element_value = document.getElementById("linter-vhdlls-ignorePaths").value = String(config["linter"]["vhdlls"]["ignorePaths"]);
+    }
+    if (config["linter"] && config["linter"]["vhdlls"] && config["linter"]["vhdlls"]["thirdPartyPaths"] !== undefined) {
+        element_value = document.getElementById("linter-vhdlls-thirdPartyPaths").value = String(config["linter"]["vhdlls"]["thirdPartyPaths"]);
     }
     if (config["linter"] && config["linter"]["vhdlls"] && config["linter"]["vhdlls"]["libraries"] !== undefined) {
         set_table_value("linter-vhdlls-libraries", config["linter"]["vhdlls"]["libraries"]);
@@ -9181,6 +9199,11 @@ body.vscode-high-contrast {
       mark = MODIFIEDMSG;
     }
     document.getElementById("mark_linter-vhdlls-ignorePaths").innerHTML = mark;
+    mark = "";
+    if (projectName !== undefined && config["linter"] && config["linter"]["vhdlls"] && config["linter"]["vhdlls"]["thirdPartyPaths"] !== undefined) {
+      mark = MODIFIEDMSG;
+    }
+    document.getElementById("mark_linter-vhdlls-thirdPartyPaths").innerHTML = mark;
     mark = "";
     if (projectName !== undefined && config["linter"] && config["linter"]["vhdlls"] && config["linter"]["vhdlls"]["libraries"] !== undefined) {
       mark = MODIFIEDMSG;
