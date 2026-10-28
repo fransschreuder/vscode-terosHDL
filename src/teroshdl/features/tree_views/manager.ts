@@ -144,11 +144,20 @@ export function forceRefresh(rustHDLFilePath: string, veribleLSFilePath: string)
     }
 
     try {
-        const hdlVersion = utils.getConfig(multi_manager).linter.vhdlls.standard.replace('v', '');
+        const config = utils.getConfig(multi_manager);
+        const hdlVersion = config.linter.vhdlls.standard.replace('v', '');
 
-        const ignoreVunit = utils.getConfig(multi_manager).linter.vhdlls.ignoreVunit;
-        const vunitPath = utils.getConfig(multi_manager).linter.vhdlls.vunitPath;
-        const unisimPath = utils.getConfig(multi_manager).linter.vhdlls.unisimPath;
+        const ignoreVunit = config.linter.vhdlls.ignoreVunit;
+        const vunitPath = config.linter.vhdlls.vunitPath;
+        const ignorePaths = config.linter.vhdlls.ignorePaths;
+        const libraries = [...config.linter.vhdlls.libraries];
+
+        // Migrate the legacy unisimPath setting (a single path string) to the
+        // generic libraries table.
+        const legacy_unisim_path = (config as any).linter?.vhdlls?.unisimPath;
+        if (typeof legacy_unisim_path === "string" && legacy_unisim_path !== "") {
+            libraries.push({ name: "UNISIM", path: legacy_unisim_path });
+        }
 
         const oldPathList = [
             path_lib.join(os.homedir(), '.vhdl_ls.toml'),
@@ -162,7 +171,7 @@ export function forceRefresh(rustHDLFilePath: string, veribleLSFilePath: string)
         }
 
         multi_manager.get_selected_project().save_toml(rustHDLFilePath, hdlVersion, ignoreVunit, vunitPath,
-            unisimPath);
+            libraries, ignorePaths);
 
         multi_manager
             .get_selected_project()

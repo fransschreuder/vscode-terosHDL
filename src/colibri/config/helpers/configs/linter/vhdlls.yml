@@ -8,7 +8,7 @@ standard:
   value: "v2008"
 
 ignoreVunit:
-  description: "It will ignore the VUnit library in vunit_lib."
+  description: "Do not lint the VUnit library: vunit_lib is added to the vhdl_ls configuration as a third-party library."
   type: boolean
   value: false
 
@@ -17,7 +17,15 @@ vunitPath:
   type: string
   value: ""
 
-unisimPath:
-  description: "Path to the UNISIM library files. The files are added to the vhdl_ls configuration as a third-party UNISIM library, so 'library UNISIM;' is resolved. Example: '/opt/Xilinx/Vivado/2023.2/data/vhdl/src/unisim/**/*.vhd'"
-  type: string
-  value: ""
+ignorePaths:
+  description: "Paths of libraries to ignore: they are not added to the vhdl_ls configuration. Example: '/home/myuser/.venvs/default/lib/python3.12/site-packages/vunit/vhdl/**/*.vhd'"
+  type: array
+  value: []
+
+libraries:
+  description: "Additional libraries to include in the vhdl_ls configuration. Each row adds a library with the given name and path (a file or a glob pattern) as a third-party library, so e.g. 'library UNISIM;' is resolved. Example: name 'UNISIM', path '/opt/Xilinx/Vivado/2024.2/data/vhdl/src/unisims/unisim_retarget_VCOMP.vhd'"
+  type: table
+  columns:
+    - name
+    - path
+  value: []

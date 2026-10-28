@@ -69,6 +69,28 @@ import { LoggerBase } from "colibri/logger/logger";
 
 export const DEFAULT_LIBRARY = "teroshdlDefault";
 
+/** Library added to the vhdl_ls configuration from the libraries table setting */
+export type t_vhdlls_library = {
+    name: string,
+    path: string
+};
+
+type t_project_library = {
+    name: string,
+    files: string[]
+};
+
+// Library names reserved by vhdl_ls. Defining them in the generated
+// configuration makes vhdl_ls reject (work) or crash (std) on the whole
+// configuration file, so every configured library (e.g. UNISIM) would stop
+// resolving. Project libraries with these names are not written to the
+// configuration: vhdl_ls analyzes their files in the default library.
+const VHDL_LS_RESERVED_LIBRARY_NAMES = ["work", "std", "ieee"];
+
+function is_reserved_vhdl_ls_library_name(name: string): boolean {
+    return VHDL_LS_RESERVED_LIBRARY_NAMES.includes(name.toLowerCase());
+}
+
 export class Project_manager extends ConfigManager {
     /**  Name of the project */
     private name: string;
@@ -643,13 +665,8 @@ export class Project_manager extends ConfigManager {
         return utils.get_edam_yaml(this.get_project_definition(), undefined, reference_path);
     }
 
-    public get_toml(reference_path?: string) {
-        type t_lib = {
-            name: string,
-            files: string[]
-        };
-
-        const libraries: t_lib[] = [];
+    private get_project_libraries(reference_path?: string): t_project_library[] {
+        const libraries: t_project_library[] = [];
         const vhdl_sources = this.files.get(reference_path).filter((element) => {
             return element.file_type === LANGUAGE.VHDL || file_utils.get_language_from_filepath(basename(element.name)) === LANGUAGE.VHDL;
         });
@@ -667,22 +684,34 @@ export class Project_manager extends ConfigManager {
                 }
             }
             if (!file_in_library) {
-                libraries.push(<t_lib>{
+                libraries.push(<t_project_library>{
                     name: source.logical_name,
                     files: [source.name]
                 });
             }
         }
 
+        for (const library of libraries) {
+            if (library.name === undefined || library.name === '') {
+                library.name = DEFAULT_LIBRARY;
+            }
+        }
+
+        return libraries;
+    }
+
+    public get_toml(reference_path?: string) {
+        const libraries = this.get_project_libraries(reference_path);
+
         let toml = "[libraries]\n\n";
 
         for (const library of libraries) {
+            if (is_reserved_vhdl_ls_library_name(library.name)) {
+                continue;
+            }
             let files_in_library = "";
             for (const file_in_library of library.files) {
                 files_in_library += `  '${file_in_library}',\n`;
-            }
-            if (library.name === undefined || library.name === '') {
-                library.name = DEFAULT_LIBRARY;
             }
             toml += `${library.name}.files = [\n${files_in_library}]\n\n`;
         }
@@ -700,23 +729,63 @@ export class Project_manager extends ConfigManager {
     }
 
     public save_toml(output_path: string, hdlVersion: string, ignoreVunit: boolean, vunitPath: string,
-        unisimPath = "") {
-        let initString = `standard = "${hdlVersion}"\n`;
+        libraries: t_vhdlls_library[] = [], ignorePaths: string[] = []) {
+        // Merge the project libraries with the configured external libraries
+        // (VUnit and the libraries table) by name, so the generated
+        // configuration never defines the same library twice: vhdl_ls rejects
+        // the whole configuration file on duplicate keys.
+        const library_map = new Map<string, { files: string[], is_third_party: boolean }>();
 
-        let endString = "\n\n";
-        if (vunitPath !== "") {
-            endString += `vunit_lib.files = ['${vunitPath}']\n`;
-        }
-        if (ignoreVunit && vunitPath !== "") {
-            endString += "vunit_lib.is_third_party = true\n";
-        }
-        if (unisimPath !== "") {
-            endString += `UNISIM.files = ['${unisimPath}']\n`;
-            endString += "UNISIM.is_third_party = true\n";
+        for (const library of this.get_project_libraries()) {
+            if (is_reserved_vhdl_ls_library_name(library.name)) {
+                continue;
+            }
+            library_map.set(library.name, { files: library.files, is_third_party: false });
         }
 
-        const toml_text = initString + this.get_toml() + endString;
-        file_utils.save_file_sync(output_path, toml_text);
+        const configured_libraries: { name: string, path: string, is_third_party: boolean }[] = [];
+        if (vunitPath !== "" && !ignorePaths.includes(vunitPath)) {
+            configured_libraries.push({ name: "vunit_lib", path: vunitPath, is_third_party: ignoreVunit });
+        }
+        for (const library of libraries) {
+            const name = library.name.trim();
+            const library_path = library.path.trim();
+            if (name === "" || library_path === "" || ignorePaths.includes(library_path)) {
+                continue;
+            }
+            configured_libraries.push({ name: name, path: library_path, is_third_party: true });
+        }
+
+        for (const library of configured_libraries) {
+            if (is_reserved_vhdl_ls_library_name(library.name)) {
+                continue;
+            }
+            const existing = library_map.get(library.name);
+            if (existing === undefined) {
+                library_map.set(library.name, { files: [library.path], is_third_party: library.is_third_party });
+            } else {
+                existing.files.push(library.path);
+                existing.is_third_party = existing.is_third_party || library.is_third_party;
+            }
+        }
+
+        let toml = `standard = "${hdlVersion}"\n[libraries]\n\n`;
+        if (library_map.size === 0) {
+            toml += `${DEFAULT_LIBRARY}.files = []\n\n`;
+        }
+        library_map.forEach((library, name) => {
+            let files_in_library = "";
+            for (const file_in_library of library.files) {
+                files_in_library += `  '${file_in_library}',\n`;
+            }
+            toml += `${name}.files = [\n${files_in_library}]\n`;
+            if (library.is_third_party) {
+                toml += `${name}.is_third_party = true\n`;
+            }
+            toml += "\n";
+        });
+
+        file_utils.save_file_sync(output_path, toml);
     }
     
     public saveFileList(output_path: string, hdlVersion: string, ignoreVunit: boolean, vunitPath: string) {
@@ -929,7 +998,7 @@ function diff_config<T extends Record<string, any>>(config1: T, config2: T): T {
             const nestedDifferences = diff_config(value1, value2);
             differences[key] = nestedDifferences;
         } else if (Array.isArray(value1) && Array.isArray(value2)) {
-            if (value1.length === value2.length && value1.every((value, index) => value === value2[index])) {
+            if (JSON.stringify(value1) === JSON.stringify(value2)) {
                 differences[key] = undefined;
             } else {
                 differences[key] = value1;

@@ -681,6 +681,20 @@ describe('project_manager', () => {
     describe('save_toml (vhdl_ls configuration)', () => {
         const toml_path = '/tmp/test_vhdl_ls.toml';
 
+        const add_vhdl_file = async (name: string, logical_name: string) => {
+            const file: t_file = {
+                name: name,
+                is_include_file: false,
+                include_path: "",
+                logical_name: logical_name,
+                is_manual: false,
+                file_type: LANGUAGE.VHDL,
+                file_version: undefined,
+                source_type: e_source_type.NONE,
+            };
+            await project_manager.add_file_from_array([file], false);
+        };
+
         afterEach(() => {
             if (fs.existsSync(toml_path)) {
                 fs.unlinkSync(toml_path);
@@ -697,25 +711,92 @@ describe('project_manager', () => {
             expect(toml).not.toContain('vunit_lib');
         });
 
-        test('writes the UNISIM library as third-party when unisimPath is set', () => {
-            const unisim_path = '/opt/Xilinx/Vivado/2023.2/data/vhdl/src/unisim/**/*.vhd';
-            project_manager.save_toml(toml_path, "2008", false, "", unisim_path);
+        test('writes a libraries table entry as a third-party library', () => {
+            const unisim_path = '/opt/Xilinx/Vivado/2024.2/data/vhdl/src/unisims/unisim_retarget_VCOMP.vhd';
+            project_manager.save_toml(toml_path, "2008", false, "",
+                [{ name: "UNISIM", path: unisim_path }]);
 
             const toml = fs.readFileSync(toml_path, 'utf-8');
-            expect(toml).toContain(`UNISIM.files = ['${unisim_path}']`);
+            expect(toml).toMatch(/^UNISIM\.files = \[/m);
+            expect(toml).toContain(`'${unisim_path}'`);
             expect(toml).toContain('UNISIM.is_third_party = true');
         });
 
-        test('writes the VUnit and UNISIM libraries together', () => {
+        test('writes the VUnit library and the libraries table together', () => {
             const vunit_path = '/home/user/vunit/vhdl/**/*.vhd';
             const unisim_path = '/opt/Xilinx/unisim/**/*.vhd';
-            project_manager.save_toml(toml_path, "2008", true, vunit_path, unisim_path);
+            project_manager.save_toml(toml_path, "2008", true, vunit_path,
+                [{ name: "UNISIM", path: unisim_path }]);
 
             const toml = fs.readFileSync(toml_path, 'utf-8');
-            expect(toml).toContain(`vunit_lib.files = ['${vunit_path}']`);
+            expect(toml).toMatch(/^vunit_lib\.files = \[/m);
+            expect(toml).toContain(`'${vunit_path}'`);
             expect(toml).toContain('vunit_lib.is_third_party = true');
-            expect(toml).toContain(`UNISIM.files = ['${unisim_path}']`);
+            expect(toml).toMatch(/^UNISIM\.files = \[/m);
+            expect(toml).toContain(`'${unisim_path}'`);
             expect(toml).toContain('UNISIM.is_third_party = true');
+        });
+
+        test('marks vunit_lib as third-party only when ignoreVunit is set', () => {
+            const vunit_path = '/home/user/vunit/vhdl/**/*.vhd';
+            project_manager.save_toml(toml_path, "2008", false, vunit_path);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toMatch(/^vunit_lib\.files = \[/m);
+            expect(toml).not.toContain('vunit_lib.is_third_party');
+        });
+
+        test('ignorePaths excludes the VUnit library and table entries', () => {
+            const vunit_path = '/home/user/vunit/vhdl/**/*.vhd';
+            const unisim_path = '/opt/Xilinx/unisim/**/*.vhd';
+            const other_path = '/opt/other/**/*.vhd';
+            project_manager.save_toml(toml_path, "2008", true, vunit_path,
+                [{ name: "UNISIM", path: unisim_path }, { name: "OTHER", path: other_path }],
+                [vunit_path, other_path]);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).not.toContain('vunit_lib');
+            expect(toml).toMatch(/^UNISIM\.files = \[/m);
+            expect(toml).not.toContain('OTHER');
+        });
+
+        test('skips table entries with an empty name or path', () => {
+            project_manager.save_toml(toml_path, "2008", false, "",
+                [{ name: "", path: "/opt/x/**/*.vhd" }, { name: "UNISIM", path: "" }]);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).not.toContain('UNISIM');
+            expect(toml).not.toContain('/opt/x');
+        });
+
+        test('does not write project libraries with names reserved by vhdl_ls', async () => {
+            await add_vhdl_file('/home/user/src/tb_work.vhd', 'work');
+            await add_vhdl_file('/home/user/src/tb_std.vhd', 'std');
+            await add_vhdl_file('/home/user/src/tb_ieee.vhd', 'ieee');
+            await add_vhdl_file('/home/user/src/tb_felix.vhd', 'felix');
+            project_manager.save_toml(toml_path, "2008", false, "",
+                [{ name: "UNISIM", path: "/opt/Xilinx/unisim/**/*.vhd" }]);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toMatch(/^felix\.files = \[/m);
+            expect(toml).toMatch(/^UNISIM\.files = \[/m);
+            expect(toml).not.toMatch(/^work\.files/m);
+            expect(toml).not.toMatch(/^std\.files/m);
+            expect(toml).not.toMatch(/^ieee\.files/m);
+        });
+
+        test('merges a project library with a configured library of the same name', async () => {
+            await add_vhdl_file('/home/user/vunit/vhdl/vunit_pkg.vhd', 'vunit_lib');
+            const vunit_path = '/home/user/vunit/vhdl/**/*.vhd';
+            project_manager.save_toml(toml_path, "2008", false, vunit_path);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            // Exactly one vunit_lib entry, containing both the project file and
+            // the configured path (duplicate keys are rejected by vhdl_ls)
+            expect(toml.match(/^vunit_lib\.files/gm)).toHaveLength(1);
+            expect(toml).toContain("'/home/user/vunit/vhdl/vunit_pkg.vhd'");
+            expect(toml).toContain(`'${vunit_path}'`);
+            expect(toml).not.toContain('vunit_lib.is_third_party');
         });
     });
 
