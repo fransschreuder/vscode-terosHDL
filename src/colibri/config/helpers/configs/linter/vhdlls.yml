@@ -8,12 +8,12 @@ standard:
   value: "v2008"
 
 ignoreVunit:
-  description: "Do not lint the VUnit library: vunit_lib is added to the vhdl_ls configuration as a third-party library."
+  description: "Do not lint the VUnit libraries: vunit_lib, tb_com_lib and osvvm are added to the vhdl_ls configuration as third-party libraries, including the ones VUnit added to the project."
   type: boolean
   value: false
 
 vunitPath:
-  description: "Path to the VUnit files. Example: '/home/myuser/.venvs/default/lib/python3.12/site-packages/vunit/vhdl/**/*.vhd'"
+  description: "Path to the VUnit VHDL directory. Example: '/home/myuser/.venvs/default/lib/python3.12/site-packages/vunit/vhdl' (a glob pattern such as '.../vunit/vhdl/**/*.vhd' is also accepted). Adds the VUnit libraries vunit_lib and osvvm to the vhdl_ls configuration."
   type: string
   value: ""
 

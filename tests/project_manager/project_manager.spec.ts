@@ -722,7 +722,7 @@ describe('project_manager', () => {
             expect(toml).toContain('UNISIM.is_third_party = true');
         });
 
-        test('writes the VUnit library and the libraries table together', () => {
+        test('writes the VUnit libraries and the libraries table together', () => {
             const vunit_path = '/home/user/vunit/vhdl/**/*.vhd';
             const unisim_path = '/opt/Xilinx/unisim/**/*.vhd';
             project_manager.save_toml(toml_path, "2008", true, vunit_path,
@@ -730,20 +730,40 @@ describe('project_manager', () => {
 
             const toml = fs.readFileSync(toml_path, 'utf-8');
             expect(toml).toMatch(/^vunit_lib\.files = \[/m);
-            expect(toml).toContain(`'${vunit_path}'`);
+            expect(toml).toContain(`'/home/user/vunit/vhdl/*.vhd'`);
+            expect(toml).toContain(`'/home/user/vunit/vhdl/run/src/*.vhd'`);
             expect(toml).toContain('vunit_lib.is_third_party = true');
+            expect(toml).toMatch(/^osvvm\.files = \[/m);
+            expect(toml).toContain(`'/home/user/vunit/vhdl/osvvm/*.vhd'`);
+            expect(toml).toContain('osvvm.is_third_party = true');
             expect(toml).toMatch(/^UNISIM\.files = \[/m);
             expect(toml).toContain(`'${unisim_path}'`);
             expect(toml).toContain('UNISIM.is_third_party = true');
         });
 
-        test('marks vunit_lib as third-party only when ignoreVunit is set', () => {
+        test('adds the VUnit libraries from a plain VUnit path', () => {
+            project_manager.save_toml(toml_path, "2008", false, '/home/user/vunit/vhdl');
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toMatch(/^vunit_lib\.files = \[/m);
+            expect(toml).toContain(`'/home/user/vunit/vhdl/*.vhd'`);
+            expect(toml).toContain(`'/home/user/vunit/vhdl/vunit/**/*.vhd'`);
+            expect(toml).toContain(`'/home/user/vunit/vhdl/com/src/*.vhd'`);
+            expect(toml).toContain(`'/home/user/vunit/vhdl/logging/src/*.vhd'`);
+            expect(toml).not.toContain('vunit_lib.is_third_party');
+            expect(toml).toMatch(/^osvvm\.files = \[/m);
+            expect(toml).toContain(`'/home/user/vunit/vhdl/osvvm/*.vhd'`);
+            expect(toml).not.toContain('osvvm.is_third_party');
+        });
+
+        test('marks the VUnit libraries as third-party only when ignoreVunit is set', () => {
             const vunit_path = '/home/user/vunit/vhdl/**/*.vhd';
             project_manager.save_toml(toml_path, "2008", false, vunit_path);
 
             const toml = fs.readFileSync(toml_path, 'utf-8');
             expect(toml).toMatch(/^vunit_lib\.files = \[/m);
-            expect(toml).not.toContain('vunit_lib.is_third_party');
+            expect(toml).toMatch(/^osvvm\.files = \[/m);
+            expect(toml).not.toContain('is_third_party');
         });
 
         test('ignorePaths excludes the VUnit library and table entries', () => {
@@ -792,11 +812,49 @@ describe('project_manager', () => {
 
             const toml = fs.readFileSync(toml_path, 'utf-8');
             // Exactly one vunit_lib entry, containing both the project file and
-            // the configured path (duplicate keys are rejected by vhdl_ls)
+            // the configured VUnit paths (duplicate keys are rejected by vhdl_ls)
             expect(toml.match(/^vunit_lib\.files/gm)).toHaveLength(1);
             expect(toml).toContain("'/home/user/vunit/vhdl/vunit_pkg.vhd'");
-            expect(toml).toContain(`'${vunit_path}'`);
+            expect(toml).toContain(`'/home/user/vunit/vhdl/run/src/*.vhd'`);
             expect(toml).not.toContain('vunit_lib.is_third_party');
+        });
+
+        test('a project VUnit library stays third-party when merged with the configured VUnit path', async () => {
+            await add_vhdl_file('/home/user/vunit/vhdl/vunit_pkg.vhd', 'vunit_lib');
+            const vunit_path = '/home/user/vunit/vhdl/**/*.vhd';
+            project_manager.save_toml(toml_path, "2008", true, vunit_path);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml.match(/^vunit_lib\.files/gm)).toHaveLength(1);
+            expect(toml).toContain("'/home/user/vunit/vhdl/vunit_pkg.vhd'");
+            expect(toml).toContain(`'/home/user/vunit/vhdl/run/src/*.vhd'`);
+            expect(toml).toContain('vunit_lib.is_third_party = true');
+        });
+
+        test('marks the VUnit project libraries as third-party when ignoreVunit is set', async () => {
+            await add_vhdl_file('/home/user/vunit/vhdl/vunit_pkg.vhd', 'vunit_lib');
+            await add_vhdl_file('/home/user/vunit/vhdl/com/test/tb_com_codec.vhd', 'tb_com_lib');
+            await add_vhdl_file('/home/user/vunit/vhdl/osvvm/OsvvmContext.vhd', 'osvvm');
+            await add_vhdl_file('/home/user/src/tb_felix.vhd', 'felix');
+            project_manager.save_toml(toml_path, "2008", true, "");
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toContain('vunit_lib.is_third_party = true');
+            expect(toml).toContain('tb_com_lib.is_third_party = true');
+            expect(toml).toContain('osvvm.is_third_party = true');
+            expect(toml).toMatch(/^felix\.files = \[/m);
+            expect(toml).not.toContain('felix.is_third_party');
+        });
+
+        test('does not mark the VUnit project libraries as third-party when ignoreVunit is not set', async () => {
+            await add_vhdl_file('/home/user/vunit/vhdl/vunit_pkg.vhd', 'vunit_lib');
+            await add_vhdl_file('/home/user/vunit/vhdl/osvvm/OsvvmContext.vhd', 'osvvm');
+            project_manager.save_toml(toml_path, "2008", false, "");
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toMatch(/^vunit_lib\.files = \[/m);
+            expect(toml).toMatch(/^osvvm\.files = \[/m);
+            expect(toml).not.toContain('is_third_party');
         });
 
         test('ignorePaths filters matching project files', async () => {

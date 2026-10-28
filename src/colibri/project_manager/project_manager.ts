@@ -135,6 +135,41 @@ function is_path_ignored(path: string, ignorePaths: string[]): boolean {
     });
 }
 
+// Libraries that make up VUnit: vunit_lib holds the VUnit sources, tb_com_lib
+// the communication test library and osvvm the bundled OSVVM. Marking them as
+// third-party keeps vhdl_ls from linting them when the VUnit library is ignored
+const VUNIT_LIBRARY_NAMES = ["vunit_lib", "tb_com_lib", "osvvm"];
+
+function is_vunit_library_name(name: string): boolean {
+    return VUNIT_LIBRARY_NAMES.includes(name.toLowerCase());
+}
+
+// Source directories of the vunit_lib library within the VUnit vhdl directory.
+// The 'vunit' directory covers VUnit 4.x, where the sources lived there
+const VUNIT_LIB_SOURCE_DIRECTORIES = [
+    "core", "string_ops", "check", "dictionary", "run", "path",
+    "data_types", "random", "com", "verification_components", "logging"
+];
+
+/**
+ * Libraries and file patterns of the VUnit vhdl directory, following the layout
+ * VUnit itself uses: the vunit_lib sources are the top level files and the
+ * src directory of every builtin, the bundled OSVVM is a library of its own.
+ * A single pattern over the whole directory is not usable: it would also pull in
+ * the test files of the builtins and the OSVVM sources, which reference
+ * libraries (e.g. tb_com_lib, osvvm) that are then reported as missing.
+ */
+function get_vunit_libraries(vunit_dir: string): { name: string, paths: string[] }[] {
+    const vunit_lib_paths = [`${vunit_dir}/*.vhd`, `${vunit_dir}/vunit/**/*.vhd`];
+    for (const directory of VUNIT_LIB_SOURCE_DIRECTORIES) {
+        vunit_lib_paths.push(`${vunit_dir}/${directory}/src/*.vhd`);
+    }
+    return [
+        { name: "vunit_lib", paths: vunit_lib_paths },
+        { name: "osvvm", paths: [`${vunit_dir}/osvvm/*.vhd`] }
+    ];
+}
+
 export class Project_manager extends ConfigManager {
     /**  Name of the project */
     private name: string;
@@ -790,12 +825,23 @@ export class Project_manager extends ConfigManager {
             if (files.length === 0) {
                 continue;
             }
-            library_map.set(library.name, { files: files, is_third_party: false });
+            // The VUnit libraries are not linted when the VUnit library is
+            // ignored, also when they come from the project (e.g. added by VUnit)
+            library_map.set(library.name, {
+                files: files,
+                is_third_party: ignoreVunit && is_vunit_library_name(library.name)
+            });
         }
 
-        const configured_libraries: { name: string, path: string, is_third_party: boolean }[] = [];
+        const configured_libraries: { name: string, paths: string[], is_third_party: boolean }[] = [];
         if (vunitPath !== "" && !is_path_ignored(vunitPath, ignorePaths)) {
-            configured_libraries.push({ name: "vunit_lib", path: vunitPath, is_third_party: ignoreVunit });
+            // The path points to the VUnit vhdl directory; a glob pattern (e.g.
+            // '.../vunit/vhdl/**/*.vhd') is also accepted, strip it to find the
+            // directory
+            const vunit_dir = vunitPath.split("*")[0].replace(/[\\/]+$/, "");
+            for (const library of get_vunit_libraries(vunit_dir)) {
+                configured_libraries.push({ ...library, is_third_party: ignoreVunit });
+            }
         }
         for (const library of libraries) {
             const name = library.name.trim();
@@ -803,7 +849,7 @@ export class Project_manager extends ConfigManager {
             if (name === "" || library_path === "" || is_path_ignored(library_path, ignorePaths)) {
                 continue;
             }
-            configured_libraries.push({ name: name, path: library_path, is_third_party: true });
+            configured_libraries.push({ name: name, paths: [library_path], is_third_party: true });
         }
 
         for (const library of configured_libraries) {
@@ -812,9 +858,9 @@ export class Project_manager extends ConfigManager {
             }
             const existing = library_map.get(library.name);
             if (existing === undefined) {
-                library_map.set(library.name, { files: [library.path], is_third_party: library.is_third_party });
+                library_map.set(library.name, { files: [...library.paths], is_third_party: library.is_third_party });
             } else {
-                existing.files.push(library.path);
+                existing.files.push(...library.paths);
                 existing.is_third_party = existing.is_third_party || library.is_third_party;
             }
         }
