@@ -798,6 +798,41 @@ describe('project_manager', () => {
             expect(toml).toContain(`'${vunit_path}'`);
             expect(toml).not.toContain('vunit_lib.is_third_party');
         });
+
+        test('ignorePaths filters matching project files', async () => {
+            await add_vhdl_file('/home/user/src/tb_felix.vhd', 'felix');
+            await add_vhdl_file('/home/user/src/ip_cores/sim/netlist.vhd', 'felix');
+            project_manager.save_toml(toml_path, "2008", false, "",
+                [], ['/home/user/src/ip_cores/sim/*.vhd']);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).toMatch(/^felix\.files = \[/m);
+            expect(toml).toContain("'/home/user/src/tb_felix.vhd'");
+            expect(toml).not.toContain('netlist.vhd');
+        });
+
+        test('a library is dropped when all its files are ignored', async () => {
+            await add_vhdl_file('/home/user/src/ip_cores/sim/netlist.vhd', 'netlists');
+            await add_vhdl_file('/home/user/src/tb_felix.vhd', 'felix');
+            project_manager.save_toml(toml_path, "2008", false, "",
+                [], ['/home/user/src/ip_cores/**']);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).not.toMatch(/^netlists\.files/m);
+            expect(toml).not.toContain('netlist.vhd');
+            expect(toml).toMatch(/^felix\.files = \[/m);
+        });
+
+        test('ignorePaths matches configured library paths by glob pattern', () => {
+            const vunit_path = '/home/user/vunit/vhdl/**/*.vhd';
+            project_manager.save_toml(toml_path, "2008", false, vunit_path,
+                [{ name: "UNISIM", path: "/opt/Xilinx/unisim/**/*.vhd" }],
+                ['/home/user/vunit/**']);
+
+            const toml = fs.readFileSync(toml_path, 'utf-8');
+            expect(toml).not.toContain('vunit_lib');
+            expect(toml).toMatch(/^UNISIM\.files = \[/m);
+        });
     });
 
     describe('Error Handling and Edge Cases', () => {

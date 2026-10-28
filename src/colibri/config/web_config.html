@@ -1700,7 +1700,7 @@ body.vscode-high-contrast {
                   
                     <div class="setting-item">
                         <div class="setting-item-label">
-                            Paths of libraries to ignore: they are not added to the vhdl_ls configuration. Example: '/home/myuser/.venvs/default/lib/python3.12/site-packages/vunit/vhdl/**/*.vhd'
+                            Paths of VHDL files or libraries to ignore in vhdl_ls: matching project files are not added to the vhdl_ls configuration, so they are not analyzed. Comma separated files or glob patterns. Example: '/home/myuser/firmware/sources/ip_cores/sim/*.vhdl'
                             <span class="markConfig" id="mark_linter-vhdlls-ignorePaths"></span>
                         </div>
                         <div class="setting-item-description">Comma separated values</div>

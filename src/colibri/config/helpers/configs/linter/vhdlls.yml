@@ -18,7 +18,7 @@ vunitPath:
   value: ""
 
 ignorePaths:
-  description: "Paths of libraries to ignore: they are not added to the vhdl_ls configuration. Example: '/home/myuser/.venvs/default/lib/python3.12/site-packages/vunit/vhdl/**/*.vhd'"
+  description: "Paths of VHDL files or libraries to ignore in vhdl_ls: matching project files are not added to the vhdl_ls configuration, so they are not analyzed. Comma separated files or glob patterns. Example: '/home/myuser/firmware/sources/ip_cores/sim/*.vhdl'"
   type: array
   value: []
 
