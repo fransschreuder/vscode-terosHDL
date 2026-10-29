@@ -114,3 +114,52 @@ describe('Yosys', () => {
         });
     }, 10000);
 });
+
+describe('Yosys schematic ignorePaths', () => {
+    it('filter_schematic_sources returns all sources when no paths are ignored', () => {
+        const sources = getFileList(LANGUAGE.VERILOG);
+        expect(yosys.filter_schematic_sources(sources, [])).toBe(sources);
+        expect(yosys.filter_schematic_sources(sources, [""])).toEqual(sources);
+    });
+
+    it('filter_schematic_sources excludes sources matching a glob pattern', () => {
+        const sources = getFileList(LANGUAGE.VERILOG);
+        const mylib_dir = path_lib.join(__dirname, 'helpers', 'verilog', 'mylib');
+
+        const filtered = yosys.filter_schematic_sources(sources, [`${mylib_dir}/*.v`]);
+
+        expect(filtered).toHaveLength(1);
+        expect(filtered[0].name).toContain('counter_top.v');
+    });
+
+    it('filter_schematic_sources excludes sources matching an exact file path', () => {
+        const sources = getFileList(LANGUAGE.VERILOG);
+        const logic_path = path_lib.join(__dirname, 'helpers', 'verilog', 'mylib', 'counter_logic.v');
+
+        const filtered = yosys.filter_schematic_sources(sources, [logic_path]);
+
+        expect(filtered).toHaveLength(1);
+        expect(filtered[0].name).toContain('counter_top.v');
+    });
+
+    it('getSchematic does not pass the ignored files to Yosys', (done) => {
+        const defaultConfig = get_default_config();
+        defaultConfig.schematic.general.backend = e_schematic_general_backend.yosys;
+        const mylib_dir = path_lib.join(__dirname, 'helpers', 'verilog', 'mylib');
+        defaultConfig.schematic.general.ignorePaths = [`${mylib_dir}/*.v`];
+
+        let spawnargs: string[] = [];
+        yosys.getSchematic(defaultConfig, 'counter_top', getFileList(LANGUAGE.VERILOG), (result) => {
+            const cmd = spawnargs.join(" ");
+            expect(cmd).toContain('counter_top.v');
+            expect(cmd).not.toContain('counter_logic.v');
+            // The excluded file is not part of the generated design
+            const modules = Object.keys(JSON.parse(result.schematic).modules);
+            expect(modules).toEqual(['counter_top']);
+
+            done();
+        }).then((exec_i) => {
+            spawnargs = exec_i.spawnargs;
+        });
+    }, 10000);
+});

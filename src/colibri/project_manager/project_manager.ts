@@ -59,7 +59,7 @@ import { p_result } from "../process/common";
 import { TaskStateManager } from "./tool/taskState";
 import { ProjectEmitter, e_event } from "./projectEmitter";
 import { LANGUAGE } from "../common/general";
-import { basename, resolve } from "path";
+import { basename } from "path";
 import { get } from "lodash";
 import { getTaskList } from "./tool/utils";
 import { runTaskGHDL } from "./tool/ghdl/taskRunners";
@@ -89,50 +89,6 @@ const VHDL_LS_RESERVED_LIBRARY_NAMES = ["work", "std", "ieee"];
 
 function is_reserved_vhdl_ls_library_name(name: string): boolean {
     return VHDL_LS_RESERVED_LIBRARY_NAMES.includes(name.toLowerCase());
-}
-
-/** Convert a glob pattern (*, **, ?) to an anchored RegExp */
-function glob_pattern_to_regex(pattern: string): RegExp {
-    let regex = "^";
-    let i = 0;
-    while (i < pattern.length) {
-        if (pattern[i] === "*" && pattern[i + 1] === "*") {
-            if (pattern[i + 2] === "/") {
-                // '**/' matches zero or more path segments
-                regex += "(?:.*/)?";
-                i += 3;
-            } else {
-                regex += ".*";
-                i += 2;
-            }
-        } else if (pattern[i] === "*") {
-            regex += "[^/]*";
-            i += 1;
-        } else if (pattern[i] === "?") {
-            regex += "[^/]";
-            i += 1;
-        } else {
-            regex += pattern[i].replace(/[.+^${}()|[\]\\]/g, "\\$&");
-            i += 1;
-        }
-    }
-    return new RegExp(regex + "$");
-}
-
-/** Check if a file/library path matches one of the given paths (files or glob patterns) */
-function is_path_matching(path: string, patterns: string[]): boolean {
-    if (patterns.length === 0) {
-        return false;
-    }
-    const candidates = [path, resolve(path)];
-    return patterns.some((pattern) => {
-        const trimmed = pattern.trim();
-        if (trimmed === "") {
-            return false;
-        }
-        const regex = glob_pattern_to_regex(trimmed);
-        return candidates.some((candidate) => regex.test(candidate));
-    });
 }
 
 // Libraries that make up VUnit: vunit_lib holds the VUnit sources, tb_com_lib
@@ -821,7 +777,7 @@ export class Project_manager extends ConfigManager {
             }
             // Ignored paths (files or glob patterns) are not added to the
             // configuration, so vhdl_ls does not analyze them
-            const files = library.files.filter((file) => !is_path_matching(file, ignorePaths));
+            const files = library.files.filter((file) => !file_utils.is_path_matching(file, ignorePaths));
             if (files.length === 0) {
                 continue;
             }
@@ -832,12 +788,12 @@ export class Project_manager extends ConfigManager {
             library_map.set(library.name, {
                 files: files,
                 is_third_party: (ignoreVunit && is_vunit_library_name(library.name))
-                    || files.some((file) => is_path_matching(file, thirdPartyPaths))
+                    || files.some((file) => file_utils.is_path_matching(file, thirdPartyPaths))
             });
         }
 
         const configured_libraries: { name: string, paths: string[], is_third_party: boolean }[] = [];
-        if (vunitPath !== "" && !is_path_matching(vunitPath, ignorePaths)) {
+        if (vunitPath !== "" && !file_utils.is_path_matching(vunitPath, ignorePaths)) {
             // The path points to the VUnit vhdl directory; a glob pattern (e.g.
             // '.../vunit/vhdl/**/*.vhd') is also accepted, strip it to find the
             // directory
@@ -849,7 +805,7 @@ export class Project_manager extends ConfigManager {
         for (const library of libraries) {
             const name = library.name.trim();
             const library_path = library.path.trim();
-            if (name === "" || library_path === "" || is_path_matching(library_path, ignorePaths)) {
+            if (name === "" || library_path === "" || file_utils.is_path_matching(library_path, ignorePaths)) {
                 continue;
             }
             configured_libraries.push({ name: name, paths: [library_path], is_third_party: true });

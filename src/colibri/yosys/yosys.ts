@@ -34,6 +34,17 @@ export type e_schematic_result = {
     empty: boolean
 };
 
+/**
+ * Remove the sources matching the ignore paths of the schematic settings: the
+ * excluded files are not passed to Yosys
+ */
+export function filter_schematic_sources(sources: t_file[], ignorePaths: string[]): t_file[] {
+    if (ignorePaths.length === 0) {
+        return sources;
+    }
+    return sources.filter((source) => !file_utils.is_path_matching(source.name, ignorePaths));
+}
+
 function removeEmptyCommands(cmd: string): string {
     return cmd.replace(/; ;/g, ";");
 }
@@ -41,15 +52,17 @@ function removeEmptyCommands(cmd: string): string {
 export async function getSchematic(config: e_config, topTevel: string, sources: t_file[],
     callback_stream: (stream_c: e_schematic_result) => void) : Promise<any>{
 
+    const filtered_sources = filter_schematic_sources(sources, config.schematic.general.ignorePaths);
+
     const backend = config.schematic.general.backend;
     if (backend === e_schematic_general_backend.yosys || backend === e_schematic_general_backend.yowasp) {
-        return runYosysRaw(config, topTevel, sources, callback_stream);
+        return runYosysRaw(config, topTevel, filtered_sources, callback_stream);
     }
     else if (backend === e_schematic_general_backend.yosys_ghdl) {
-        return await runYosysGhdl(config, topTevel, sources, callback_stream);
+        return await runYosysGhdl(config, topTevel, filtered_sources, callback_stream);
     }
     else if (backend === e_schematic_general_backend.standalone) {
-        return runYosysStandalone(config, topTevel, sources, callback_stream);
+        return runYosysStandalone(config, topTevel, filtered_sources, callback_stream);
     }
 }
 

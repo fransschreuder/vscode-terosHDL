@@ -1958,6 +1958,16 @@ body.vscode-high-contrast {
                     </div>
                   
                   
+                    <div class="setting-item">
+                        <div class="setting-item-label">
+                            Paths of files to exclude from the schematic viewer: matching files are not passed to Yosys. Comma separated files or glob patterns. Example: '/home/myuser/firmware/sources/ip_cores/sim/*.vhdl'
+                            <span class="markConfig" id="mark_schematic-general-ignorePaths"></span>
+                        </div>
+                        <div class="setting-item-description">Comma separated values</div>
+                        <input class="setting-input-box" id="schematic-general-ignorePaths">
+                    </div>
+                  
+                  
                   
             </div>
             <div class="settings-section" id="templates-general">
@@ -6799,6 +6809,11 @@ body.vscode-high-contrast {
     config["schematic"]["general"]["args"] = element_value
     element_value = document.getElementById("schematic-general-args_ghdl").value;
     config["schematic"]["general"]["args_ghdl"] = element_value
+    element_value = document.getElementById("schematic-general-ignorePaths").value.split(',');
+    if (element_value.length == 1 && element_value[0] == "") {
+      element_value = [];
+    }
+    config["schematic"]["general"]["ignorePaths"] = element_value
     config["templates"] = {}
     config["templates"]["general"] = {}
     element_value = document.getElementById("templates-general-header_file_path").value;
@@ -7965,6 +7980,9 @@ body.vscode-high-contrast {
     }
     if (config["schematic"] && config["schematic"]["general"] && config["schematic"]["general"]["args_ghdl"] !== undefined) {
         document.getElementById("schematic-general-args_ghdl").value = config["schematic"]["general"]["args_ghdl"];
+    }
+    if (config["schematic"] && config["schematic"]["general"] && config["schematic"]["general"]["ignorePaths"] !== undefined) {
+        element_value = document.getElementById("schematic-general-ignorePaths").value = String(config["schematic"]["general"]["ignorePaths"]);
     }
     if (config["templates"] && config["templates"]["general"] && config["templates"]["general"]["header_file_path"] !== undefined) {
         document.getElementById("templates-general-header_file_path").value = config["templates"]["general"]["header_file_path"];
@@ -9295,6 +9313,11 @@ body.vscode-high-contrast {
       mark = MODIFIEDMSG;
     }
     document.getElementById("mark_schematic-general-args_ghdl").innerHTML = mark;
+    mark = "";
+    if (projectName !== undefined && config["schematic"] && config["schematic"]["general"] && config["schematic"]["general"]["ignorePaths"] !== undefined) {
+      mark = MODIFIEDMSG;
+    }
+    document.getElementById("mark_schematic-general-ignorePaths").innerHTML = mark;
     mark = "";
     if (projectName !== undefined && config["templates"] && config["templates"]["general"] && config["templates"]["general"]["header_file_path"] !== undefined) {
       mark = MODIFIEDMSG;

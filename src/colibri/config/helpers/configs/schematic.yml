@@ -24,3 +24,8 @@ args_ghdl:
   description: "Arguments passed to GHDL"
   type: string
   value: ""
+
+ignorePaths:
+  description: "Paths of files to exclude from the schematic viewer: matching files are not passed to Yosys. Comma separated files or glob patterns. Example: '/home/myuser/firmware/sources/ip_cores/sim/*.vhdl'"
+  type: array
+  value: []
