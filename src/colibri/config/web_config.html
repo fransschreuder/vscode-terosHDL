@@ -1947,6 +1947,27 @@ body.vscode-high-contrast {
                     </div>
                   
                   
+                    <div class="setting-item">
+                        <div class="setting-item-label">
+                            Additional libraries passed to Yosys. Each row reads the files of the given path (a file or a glob pattern) into the library with the given name, so e.g. 'library UNISIM;' is resolved by the GHDL + Yosys backend. Example: name 'UNISIM', path '/opt/Xilinx/Vivado/2024.2/data/vhdl/src/unisims/unisim_retarget_VCOMP.vhd'
+                            <span class="markConfig" id="mark_schematic-general-libraries"></span>
+                        </div>
+                        <table class="setting-table" id="schematic-general-libraries">
+                            <thead>
+                                <tr>
+                                    <th data-column="name">Name</th>
+                                    <th data-column="path">Path</th>
+                                    <th class="setting-table-action-column"></th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                        <button type="button" class="setting-button secondary setting-table-add-button" onclick="add_table_row('schematic-general-libraries')">
+                            <i class="codicon codicon-add"></i>
+                            Add row
+                        </button>
+                    </div>
+                  
                   
             </div>
             <div class="settings-section" id="templates-general">
@@ -6793,6 +6814,8 @@ body.vscode-high-contrast {
       element_value = [];
     }
     config["schematic"]["general"]["ignorePaths"] = element_value
+    element_value = get_table_value("schematic-general-libraries");
+    config["schematic"]["general"]["libraries"] = element_value
     config["templates"] = {}
     config["templates"]["general"] = {}
     element_value = document.getElementById("templates-general-header_file_path").value;
@@ -7962,6 +7985,9 @@ body.vscode-high-contrast {
     }
     if (config["schematic"] && config["schematic"]["general"] && config["schematic"]["general"]["ignorePaths"] !== undefined) {
         element_value = document.getElementById("schematic-general-ignorePaths").value = String(config["schematic"]["general"]["ignorePaths"]);
+    }
+    if (config["schematic"] && config["schematic"]["general"] && config["schematic"]["general"]["libraries"] !== undefined) {
+        set_table_value("schematic-general-libraries", config["schematic"]["general"]["libraries"]);
     }
     if (config["templates"] && config["templates"]["general"] && config["templates"]["general"]["header_file_path"] !== undefined) {
         document.getElementById("templates-general-header_file_path").value = config["templates"]["general"]["header_file_path"];
@@ -9297,6 +9323,11 @@ body.vscode-high-contrast {
       mark = MODIFIEDMSG;
     }
     document.getElementById("mark_schematic-general-ignorePaths").innerHTML = mark;
+    mark = "";
+    if (projectName !== undefined && config["schematic"] && config["schematic"]["general"] && config["schematic"]["general"]["libraries"] !== undefined) {
+      mark = MODIFIEDMSG;
+    }
+    document.getElementById("mark_schematic-general-libraries").innerHTML = mark;
     mark = "";
     if (projectName !== undefined && config["templates"] && config["templates"]["general"] && config["templates"]["general"]["header_file_path"] !== undefined) {
       mark = MODIFIEDMSG;
