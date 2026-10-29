@@ -30,9 +30,12 @@ jobs:
 
       - name: Install bazel
         run: |
-          sudo wget --no-verbose "https://github.com/bazelbuild/bazel/releases/download/6.5.0/bazel-6.5.0-linux-x86_64" -O /usr/bin/bazel
-          sudo chmod +x /usr/bin/bazel
-          bazel --version
+          # Install under a name that cannot be shadowed by the bazelisk
+          # binary that ships with the runner images and would resolve to
+          # the latest bazel, which is incompatible with verible's .bazelrc.
+          sudo wget --no-verbose "https://github.com/bazelbuild/bazel/releases/download/6.5.0/bazel-6.5.0-linux-x86_64" -O /usr/bin/bazel-6.5.0
+          sudo chmod +x /usr/bin/bazel-6.5.0
+          /usr/bin/bazel-6.5.0 --version
 
       - name: Cache bazel
         uses: actions/cache@v4
@@ -43,7 +46,7 @@ jobs:
       - name: Build verible-verilog-ls
         working-directory: verible
         run: |
-          bazel build -c opt --config=create_static_linked_executables //verible/verilog/tools/ls:verible-verilog-ls
+          /usr/bin/bazel-6.5.0 build -c opt --config=create_static_linked_executables //verible/verilog/tools/ls:verible-verilog-ls
           # Litmus test
           bazel-bin/verible/verilog/tools/ls/verible-verilog-ls --version
 
