@@ -9,13 +9,92 @@ on:
       - dev
   workflow_dispatch:
 
+env:
+  VERIBLE_VERSION: v0.0-3958-g7aae5c08
+
 jobs:
+  ##############################################################################
+  # Build the verible language server from source
+  ##############################################################################
+  build-verible-linux:
+    name: Build verible-verilog-ls (Linux)
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout verible
+        uses: actions/checkout@v4
+        with:
+          repository: chipsalliance/verible
+          ref: ${{ env.VERIBLE_VERSION }}
+          path: verible
+          fetch-depth: 0
+
+      - name: Install bazel
+        run: |
+          sudo wget --no-verbose "https://github.com/bazelbuild/bazel/releases/download/6.5.0/bazel-6.5.0-linux-x86_64" -O /usr/bin/bazel
+          sudo chmod +x /usr/bin/bazel
+          bazel --version
+
+      - name: Cache bazel
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel
+          key: ${{ runner.os }}-verible-bazel-${{ env.VERIBLE_VERSION }}
+
+      - name: Build verible-verilog-ls
+        working-directory: verible
+        run: |
+          bazel build -c opt --config=create_static_linked_executables //verible/verilog/tools/ls:verible-verilog-ls
+          # Litmus test
+          bazel-bin/verible/verilog/tools/ls/verible-verilog-ls --version
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: verible-verilog-ls-linux
+          path: verible/bazel-bin/verible/verilog/tools/ls/verible-verilog-ls
+
+  build-verible-windows:
+    name: Build verible-verilog-ls (Windows)
+    runs-on: windows-latest
+    steps:
+      - name: Checkout verible
+        uses: actions/checkout@v4
+        with:
+          repository: chipsalliance/verible
+          ref: ${{ env.VERIBLE_VERSION }}
+          path: verible
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          choco install bazel --force --version=6.5.0
+          choco install winflexbison3
+          choco install llvm --allow-downgrade --version=17.0.6
+
+      - name: Cache bazel
+        uses: actions/cache@v4
+        with:
+          path: c:/users/runneradmin/_bazel_runneradmin
+          key: ${{ runner.os }}-verible-bazel-${{ env.VERIBLE_VERSION }}
+
+      - name: Build verible-verilog-ls
+        working-directory: verible
+        run: |
+          C:/ProgramData/chocolatey/lib/bazel/bazel.exe build --keep_going --noshow_progress -c opt //verible/verilog/tools/ls:verible-verilog-ls
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: verible-verilog-ls-windows
+          path: verible/bazel-bin/verible/verilog/tools/ls/verible-verilog-ls.exe
+
   ##############################################################################
   # Build TerosHDL
   ##############################################################################
   build:
     name: Build .vsix
     runs-on: ubuntu-22.04
+    needs: [build-verible-linux, build-verible-windows]
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -42,6 +121,18 @@ jobs:
         run: |
           now=`date +"%Y-%m-%d__%H_%M"`
           echo "version=$now" >> $GITHUB_ENV
+
+      - name: Download verible language server
+        uses: actions/download-artifact@v4
+        with:
+          pattern: verible-verilog-ls-*
+          path: verible-artifacts
+
+      - name: Assemble verible binaries
+        run: |
+          mkdir -p server/verible/${{ env.VERIBLE_VERSION }}
+          cp verible-artifacts/verible-verilog-ls-linux/verible-verilog-ls server/verible/${{ env.VERIBLE_VERSION }}/
+          cp verible-artifacts/verible-verilog-ls-windows/verible-verilog-ls.exe server/verible/${{ env.VERIBLE_VERSION }}/
 
       - name: Checkout rust_hdl (vhdl_ls language server)
         uses: actions/checkout@v4

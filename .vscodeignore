@@ -11,6 +11,7 @@ vsc-extension-quickstart.md
 user.teros-hdl.config.json
 .github
 rust_hdl
+verible-artifacts
 auto_package
 tests
 tests_impr
